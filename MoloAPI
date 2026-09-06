@@ -1,5 +1,9 @@
 local MoloAPI: {any} = {}
 
+local Players: Players = game:GetService("Players")
+local Player: Player = game:GetService("Players").LocalPlayer
+local PlayerGui: PlayerGui = Player:WaitForChild("PlayerGui")
+
 export type Object = {
 	Remove: (self: Object) -> (),
 	Name: string,
@@ -37,13 +41,6 @@ MoloAPI.Properties = {
 		},
 	},
 
-	Line = {
-		Color = "Color3",
-		Thickness = "number",
-		From = "Vector2",
-		To = "Vector2",
-	},
-
 	Circle = {
 		Color = "Color3",
 		Thickness = "number",
@@ -73,23 +70,116 @@ MoloAPI.Properties = {
 	},
 }
 
-local function CreateObject(Type: string): Object
-	assert(MoloAPI.Properties[Type], `Unsupported object type: {Type}`)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MoloDrawing"
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ResetOnSpawn = false
+ScreenGui.DisplayOrder = 1000
+ScreenGui.Parent = PlayerGui
+
+local function CreateCircle(): Object
+	local Frame = Instance.new("Frame")
+	Frame.Name = "Circle"
+	Frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	Frame.BackgroundTransparency = 1
+	Frame.BorderSizePixel = 0
+	Frame.Parent = ScreenGui
+
+	local Corner = Instance.new("UICorner")
+	Corner.CornerRadius = UDim.new(1, 0)
+	Corner.Parent = Frame
+
+	local Stroke = Instance.new("UIStroke")
+	Stroke.Thickness = 1
+	Stroke.Transparency = 0
+	Stroke.Parent = Frame
 
 	local Object = {
-		Name = Type,
-		ClassName = Type,
+		Name = "Circle",
+		ClassName = "Circle",
+		Frame = Frame,
+		Stroke = Stroke,
 	}
 
-	function Object:Remove()
-		table.clear(Object)
-	end
+	local Proxy = setmetatable(Object, {
+		__index = function(Self, Index)
+			if Index == "Visible" then
+				return Frame.Visible
+			elseif Index == "Color" then
+				return Stroke.Color
+			elseif Index == "Thickness" then
+				return Stroke.Thickness
+			elseif Index == "Transparency" then
+				return 1 - Stroke.Transparency
+			elseif Index == "Radius" then
+				return Frame.Size.X.Offset / 2
+			elseif Index == "Filled" then
+				return Frame.BackgroundTransparency == 0
+			elseif Index == "Position" then
+				return Vector2.new(
+					Frame.Position.X.Offset,
+					Frame.Position.Y.Offset
+				)
+			elseif Index == "Remove" then
+				return function()
+					Frame:Destroy()
+				end
+			end
 
-	return Object
+			return rawget(Self, Index)
+		end,
+
+		__newindex = function(Self, Index, Value)
+			if Index == "Visible" then
+				Frame.Visible = Value
+
+			elseif Index == "Color" then
+				Stroke.Color = Value
+				Frame.BackgroundColor3 = Value
+
+			elseif Index == "Thickness" then
+				Stroke.Thickness = Value
+
+			elseif Index == "Transparency" then
+				Stroke.Transparency = 1 - Value
+
+			elseif Index == "Radius" then
+				Frame.Size = UDim2.fromOffset(
+					Value * 2,
+					Value * 2
+				)
+
+			elseif Index == "Filled" then
+				Frame.BackgroundTransparency = Value and 0 or 1
+
+			elseif Index == "Position" then
+				Frame.Position = UDim2.fromOffset(
+					Value.X,
+					Value.Y
+				)
+
+			else
+				rawset(Self, Index, Value)
+			end
+		end,
+	})
+
+	Frame.Visible = true
+	Stroke.Color = Color3.new(1, 1, 1)
+	Stroke.Thickness = 1
+	Frame.Size = UDim2.fromOffset(100, 100)
+	Frame.Position = UDim2.fromOffset(0, 0)
+	Frame.BackgroundTransparency = 1
+
+	return Proxy
 end
 
 function MoloAPI.new(Type: string): Object
-	return CreateObject(Type)
+	if Type == "Circle" then
+		return CreateCircle()
+	end
+
+	error(`Unsupported object type: {Type}`)
 end
 
 return MoloAPI :: API
