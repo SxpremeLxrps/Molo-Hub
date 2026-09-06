@@ -10,7 +10,6 @@ local UIS: UserInputService = game:GetService("UserInputService")
 local Camera: Camera = workspace:WaitForChild("Camera")
 local TweenService: TweenService = game:GetService("TweenService") 
 local PlayerGui: PlayerGui = Player:WaitForChild("PlayerGui")
-local NetworkClient: NetworkClient = game:GetService("NetworkClient")
 local Stats: Stats = game:GetService("Stats")
 local SilentAim: boolean = true
 local ESPEnabled: boolean = false
@@ -19,7 +18,7 @@ local FOVCircleRunning: boolean = false
 -- [[ MODULES ]]
 
 local Drawing: {any} = loadstring(game:HttpGet("https://raw.githubusercontent.com/SxpremeLxrps/Molo-Hub/main/MoloAPI"))()
-local Ping: number = NetworkClient:GetNetworkStats().DataPing
+local Ping: number = Player:GetNetworkPing() * 1000
 local VelocityHistory: {any} = {}  
 local LastUpdate: {any} = tick()
 
