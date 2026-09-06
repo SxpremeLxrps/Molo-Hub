@@ -1,9 +1,3 @@
-getgenv().Prediction = 0.18 -- | Ping will be affected by this, be aware
-getgenv().FOV = 150
-getgenv().AimKey = "C"
-getgenv().ESPKey = "M"
-getgenv().DontShootThesePeople = {}
-
 -- [[ SERVICES ]]
 
 local Player: Player = game:GetService("Players").LocalPlayer
@@ -16,6 +10,8 @@ local UIS: UserInputService = game:GetService("UserInputService")
 local Camera: Camera = workspace:WaitForChild("Camera")
 local TweenService: TweenService = game:GetService("TweenService") 
 local PlayerGui: PlayerGui = Player:WaitForChild("PlayerGui")
+local NetworkClient: NetworkClient = game:GetService("NetworkClient")
+local Stats: Stats = game:GetService("Stats")
 local SilentAim: boolean = true
 local ESPEnabled: boolean = false
 local FOVCircleRunning: boolean = false
@@ -23,57 +19,168 @@ local FOVCircleRunning: boolean = false
 -- [[ MODULES ]]
 
 local Drawing: {any} = loadstring(game:HttpGet("https://raw.githubusercontent.com/SxpremeLxrps/Molo-Hub/main/MoloAPI"))()
+local Ping: number = NetworkClient:GetNetworkStats().DataPing
+local VelocityHistory: {any} = {}  
+local LastUpdate: {any} = tick()
+
+-- [[ ENVIRONMENT ]]
+
+getgenv().Prediction = math.clamp(Ping / 1000, 0.08, 0.35)  
+getgenv().FOV = 150
+getgenv().AimKey = "C"
+getgenv().ESPKey = "M"
+getgenv().DontShootThesePeople = {}
+getgenv().BasePrediction = 0.18  -- Default fallback  
+getgenv().MinPrediction = 0.08   -- Minimum prediction value  
+getgenv().MaxPrediction = 0.35   -- Maximum prediction value
+
 
 -- [[ CONSTANTS & UI CREATION VIA @ MOLOAPI ]]
 
-local TweenService: TweenService = game:GetService("TweenService")
-local PlayerGui: PlayerGui = Player:WaitForChild("PlayerGui")
-
+-- // Container
 local ScreenGui: ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "MoloHubUI"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
 ScreenGui.Parent = PlayerGui
 
-local WelcomeLabel: TextLabel = Instance.new("TextLabel")
-WelcomeLabel.Name = "WelcomeLabel"
-WelcomeLabel.AnchorPoint = Vector2.new(0.5, 0.5)
-WelcomeLabel.Position = UDim2.new(0.5, 0, 0.15, 0)
-WelcomeLabel.Size = UDim2.fromOffset(400, 60)
-WelcomeLabel.BackgroundTransparency = 1
-WelcomeLabel.Text = "Welcome to Molo Hub"
-WelcomeLabel.TextTransparency = 1
-WelcomeLabel.TextStrokeTransparency = 1
-WelcomeLabel.TextScaled = true
-WelcomeLabel.Font = Enum.Font.GothamBold
-WelcomeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-WelcomeLabel.Parent = ScreenGui
+local Container: Frame = Instance.new("Frame")
+Container.Name = "Container"
+Container.AnchorPoint = Vector2.new(0.5, 0.5)
+Container.Position = UDim2.new(0.5, 0, 0.15, 0)
+Container.Size = UDim2.fromOffset(560, 140)
+Container.BackgroundTransparency = 1
+Container.Parent = ScreenGui
 
-local FadeIn: Tween = TweenService:Create(
-	WelcomeLabel,
-	TweenInfo.new(0.75, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-	{
-		TextTransparency = 0,
-		TextStrokeTransparency = 0.5
-	}
-)
+local Cog: ImageLabel = Instance.new("ImageLabel")
+Cog.Name = "Cog"
+Cog.AnchorPoint = Vector2.new(0.5, 0.5)
+Cog.Position = UDim2.new(0, 44, 0.5, 0)
+Cog.Size = UDim2.fromOffset(56, 56)
+Cog.BackgroundTransparency = 1
+Cog.Image = "rbxassetid://3926305904"
+Cog.ImageRectOffset = Vector2.new(884, 764)
+Cog.ImageRectSize = Vector2.new(36, 36)
+Cog.ImageTransparency = 1
+Cog.ImageColor3 = Color3.fromRGB(255, 255, 255)
+Cog.Parent = Container
 
-local FadeOut: Tween = TweenService:Create(
-	WelcomeLabel,
-	TweenInfo.new(0.75, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-	{
-		TextTransparency = 1,
-		TextStrokeTransparency = 1
-	}
-)
+local TitleLabel: TextLabel = Instance.new("TextLabel")
+TitleLabel.Name = "TitleLabel"
+TitleLabel.AnchorPoint = Vector2.new(0, 0.5)
+TitleLabel.Position = UDim2.new(0, 100, 0, 34)
+TitleLabel.Size = UDim2.new(1, -110, 0, 46)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "Welcome to Molo Hub"
+TitleLabel.TextTransparency = 1
+TitleLabel.TextStrokeTransparency = 1
+TitleLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+TitleLabel.TextScaled = true
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+TitleLabel.Parent = Container
 
-FadeIn:Play()
-FadeIn.Completed:Wait()
+local SubtitleLabel: TextLabel = Instance.new("TextLabel")
+SubtitleLabel.Name = "SubtitleLabel"
+SubtitleLabel.AnchorPoint = Vector2.new(0, 0.5)
+SubtitleLabel.Position = UDim2.new(0, 100, 0, 74)
+SubtitleLabel.Size = UDim2.new(1, -110, 0, 28)
+SubtitleLabel.BackgroundTransparency = 1
+SubtitleLabel.Text = string.format("Logged in as %s", Player.DisplayName)
+SubtitleLabel.TextTransparency = 1
+SubtitleLabel.TextStrokeTransparency = 1
+SubtitleLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+SubtitleLabel.TextScaled = true
+SubtitleLabel.Font = Enum.Font.Gotham
+SubtitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+SubtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+SubtitleLabel.Parent = Container
 
-task.wait(2)
+local AccentLine: Frame = Instance.new("Frame")
+AccentLine.Name = "AccentLine"
+AccentLine.AnchorPoint = Vector2.new(0, 0.5)
+AccentLine.Position = UDim2.new(0, 100, 0, 104)
+AccentLine.Size = UDim2.fromOffset(0, 2)
+AccentLine.BorderSizePixel = 0
+AccentLine.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+AccentLine.BackgroundTransparency = 0.2
+AccentLine.Parent = Container
 
-FadeOut:Play()
-FadeOut.Completed:Wait()
+local AccentGradient: UIGradient = Instance.new("UIGradient")
+AccentGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(90, 160, 255)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 90, 255)),
+})
+AccentGradient.Parent = AccentLine
 
+local FadeInInfo: TweenInfo = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+local FadeOutInfo: TweenInfo = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+local LineGrowInfo: TweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+local CogFadeIn: Tween = TweenService:Create(Cog, FadeInInfo, {
+	ImageTransparency = 0,
+})
+
+local TitleFadeIn: Tween = TweenService:Create(TitleLabel, FadeInInfo, {
+	TextTransparency = 0,
+	TextStrokeTransparency = 0.5,
+})
+
+local SubtitleFadeIn: Tween = TweenService:Create(SubtitleLabel, FadeInInfo, {
+	TextTransparency = 0,
+	TextStrokeTransparency = 0.6,
+})
+
+local LineGrow: Tween = TweenService:Create(AccentLine, LineGrowInfo, {
+	Size = UDim2.fromOffset(360, 2),
+})
+
+local CogFadeOut: Tween = TweenService:Create(Cog, FadeOutInfo, {
+	ImageTransparency = 1,
+})
+
+local TitleFadeOut: Tween = TweenService:Create(TitleLabel, FadeOutInfo, {
+	TextTransparency = 1,
+	TextStrokeTransparency = 1,
+})
+
+local SubtitleFadeOut: Tween = TweenService:Create(SubtitleLabel, FadeOutInfo, {
+	TextTransparency = 1,
+	TextStrokeTransparency = 1,
+})
+
+local LineShrink: Tween = TweenService:Create(AccentLine, FadeOutInfo, {
+	Size = UDim2.fromOffset(0, 2),
+})
+
+local IsSpinning: boolean = true
+
+local function SpinCog(): ()
+	while IsSpinning do
+		Cog.Rotation = (Cog.Rotation + 4) % 360
+		task.wait()
+	end
+end
+
+task.spawn(SpinCog)
+
+-- // Sequence
+
+CogFadeIn:Play()
+TitleFadeIn:Play()
+CogFadeIn.Completed:Wait()
+task.wait(0.1)
+SubtitleFadeIn:Play()
+LineGrow:Play()
+LineGrow.Completed:Wait()
+task.wait(1.5)
+CogFadeOut:Play()
+TitleFadeOut:Play()
+SubtitleFadeOut:Play()
+LineShrink:Play()
+TitleFadeOut.Completed:Wait()
+IsSpinning = false
 ScreenGui:Destroy()
 
 local FOV_Circle: Drawing = Drawing.new("Circle")
@@ -91,6 +198,42 @@ local Options: {any} = {
 }
 
 -- [[ LOCAL FUNCTIONS ]]
+
+local function CalculateDynamicPrediction(HumanoidRootPart: BasePart): Vector3  
+	local CurrentVelocity: Vector3 = HumanoidRootPart.AssemblyLinearVelocity  
+	
+	table.insert(VelocityHistory, CurrentVelocity)  
+	if #VelocityHistory > 5 then  
+		table.remove(VelocityHistory, 1)  
+	end
+
+	local SmoothedVelocity: Vector3 = Vector3.new(0, 0, 0)  
+	
+	for _, Velocity: Vector3 in ipairs(VelocityHistory) do  
+		SmoothedVelocity = SmoothedVelocity + Velocity  
+	end  
+	
+	SmoothedVelocity = SmoothedVelocity / #VelocityHistory
+
+	local DeltaTime: number = tick() - LastUpdate  
+	LastUpdate = tick()
+
+	local PingPrediction: number = getgenv().BasePrediction  
+	local Success: boolean, PerformanceStats: Instance? = pcall(function()  
+		return Stats:FindFirstChild("PerformanceStats")  
+	end)
+
+	if Success and PerformanceStats then  
+		local PingStat: Instance? = PerformanceStats:FindFirstChild("Ping")  
+		if PingStat then  
+			local PingValue: number = PingStat:GetValue()  
+			PingPrediction = math.clamp(PingValue / 1000, getgenv().MinPrediction, getgenv().MaxPrediction)  
+		end  
+	end
+
+	return SmoothedVelocity * (PingPrediction * (1 + DeltaTime))  
+end
+
 
 local function MoveFOVCircle(): ()
 
@@ -131,11 +274,11 @@ UIS.InputBegan:Connect(function(Input: InputObject, GameProcessed: boolean)
 			for _, V: Player in Players:GetPlayers() do
 				local Character: Model? = V.Character or V.CharacterAdded:Wait()
 
-				if Character and not Character:FindFirstChild("AutismHubHighlight") then
+				if Character and not Character:FindFirstChild("MoloHubHighlight") then
 					local Highlight: Highlight = Instance.new("Highlight")
-					Highlight.Name = "AutismHubHighlight"
+					Highlight.Name = "MoloHubHighlight"
 					Highlight.Adornee = Character
-					Highlight.FillColor = Color3.fromRGB(255, 51, 0)
+					Highlight.FillColor = Color3.fromRGB(255, 0, 0)
 					Highlight.Parent = Character
 				end
 			end
@@ -145,7 +288,7 @@ UIS.InputBegan:Connect(function(Input: InputObject, GameProcessed: boolean)
 
 				if Character then
 					for _, Object: Instance in Character:GetChildren() do
-						if Object:IsA("Highlight") and Object.Name == "AutismHubHighlight" then
+						if Object:IsA("Highlight") and Object.Name == "MoloHubHighlight" then
 							Object:Destroy()
 						end
 					end
@@ -165,55 +308,65 @@ UIS.InputBegan:Connect(function(Input: InputObject, GameProcessed: boolean)
 	end
 end)
 
-local __index: (Self: Instance, Index: string) -> any
+local OriginalIndex: (Self: Instance, Index: string) -> any  
 
-__index = hookmetamethod(game, "__index", function(Self, Index)
-	if Self == Mouse and Index == "Target" then
-		return MouseTarget
+OriginalIndex = hookmetamethod(game, "__index", function(Self: Instance, Index: string): any  
+	if Self == Mouse and Index == "Target" then  
+		return MouseTarget  
 	end
 
-	if Self == Mouse and Index == "Hit" and SilentAim then
-		local Distance: number = 9e9
-		local Target: Instance = nil
+	if Self == Mouse and Index == "Hit" and SilentAim then  
+		local Distance: number = 9e9  
+		local Target: Instance? = nil
 
-		for _, V: Player in pairs(Players:GetPlayers()) do
-			if not table.find(getgenv().DontShootThesePeople, V.Name) then
-				if V ~= Player and V.Character then
-					local Humanoid: Humanoid = V.Character:WaitForChild("Humanoid")
-					local HumanoidRootPart: BasePart = V.Character:WaitForChild("HumanoidRootPart")
+		for _, PlayerInstance: Player in pairs(Players:GetPlayers()) do  
+			if not table.find(getgenv().DontShootThesePeople, PlayerInstance.Name) then  
+				if PlayerInstance ~= Player and PlayerInstance.Character then  
+					local Humanoid: Humanoid? = PlayerInstance.Character:FindFirstChild("Humanoid")  
+					local HumanoidRootPart: BasePart? = PlayerInstance.Character:FindFirstChild("HumanoidRootPart")
 
-					if Humanoid and HumanoidRootPart and Humanoid.Health > 0 then
-						local CastingFrom: CFrame = CFrame.new(Camera.CFrame.Position, HumanoidRootPart.CFrame.Position) * CFrame.new(0, 0, -4)
+					if Humanoid and HumanoidRootPart and Humanoid.Health > 0 then  
+						local CastingFrom: CFrame = CFrame.new(  
+							Camera.CFrame.Position,  
+							HumanoidRootPart.CFrame.Position  
+						) * CFrame.new(0, 0, -4)
 
-						local RayCast: Ray = Ray.new(
-							CastingFrom.Position,
-							CastingFrom.LookVector * 9000
+						local RayCast: Ray = Ray.new(  
+							CastingFrom.Position,  
+							CastingFrom.LookVector * 9000  
 						)
 
 						local PartPosition: Vector3, OnScreen: boolean = Camera:WorldToScreenPoint(HumanoidRootPart.Position)
 
-						if OnScreen then
-							local Magnitude: number = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(PartPosition.X, PartPosition.Y)).Magnitude
-							if Magnitude < Distance and Magnitude < FOV_Circle.Radius then
-								Distance = Magnitude
-								Target = V.Character
-							end
-						end
-					end
-				end
-			end
+						if OnScreen then  
+							local Magnitude: number = (  
+								Vector2.new(Mouse.X, Mouse.Y) -   
+									Vector2.new(PartPosition.X, PartPosition.Y)  
+							).Magnitude
+
+							if Magnitude < Distance and Magnitude < FOV_Circle.Radius then  
+								Distance = Magnitude  
+								Target = PlayerInstance.Character  
+							end  
+						end  
+					end  
+				end  
+			end  
 		end
 
-		if Target then
-			local HumanoidRootPart: BasePart = Target:WaitForChild("HumanoidRootPart")
-
-			if HumanoidRootPart then
-				local PredictionOffset: Vector3 = HumanoidRootPart.AssemblyLinearVelocity * getgenv().Prediction
-				return CFrame.new(HumanoidRootPart.CFrame.Position + PredictionOffset + Vector3.new(0, -1, 0))
-			end
-		end
+		if Target then  
+			local HumanoidRootPart: BasePart? = Target:FindFirstChild("HumanoidRootPart")  
+			if HumanoidRootPart then  
+				local PredictionOffset: Vector3 = CalculateDynamicPrediction(HumanoidRootPart)  
+				return CFrame.new(  
+					HumanoidRootPart.CFrame.Position +   
+						PredictionOffset +   
+						Vector3.new(0, -1, 0)  
+				)  
+			end  
+		end  
 	end
-	return __index(Self, Index)
-end)
 
+	return OriginalIndex(Self, Index)  
+end)
 MoveFOVCircle()
