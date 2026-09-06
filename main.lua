@@ -50,6 +50,30 @@ WelcomeLabel.Font = Enum.Font.GothamBold
 WelcomeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 WelcomeLabel.Parent = ScreenGui
 
+local FadeIn: Tween = TweenService:Create(
+	WelcomeLabel,
+	TweenInfo.new(0.75, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+	{
+		TextTransparency = 0,
+		TextStrokeTransparency = 0.5
+	}
+)
+
+local FadeOut: Tween = TweenService:Create(
+	WelcomeLabel,
+	TweenInfo.new(0.75, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
+	{
+		TextTransparency = 1,
+		TextStrokeTransparency = 1
+	}
+)
+
+FadeIn:Play()
+FadeIn.Completed:Wait()
+task.wait(2)
+FadeOut:Play()
+FadeOut.Completed:Wait()
+ScreenGui:Destroy()
 
 local FOV_Circle: Drawing = Drawing.new("Circle")
 FOV_Circle.Visible = true
@@ -194,28 +218,3 @@ __index = hookmetamethod(game, "__index", function(Self, Index)
 end)
 
 MoveFOVCircle()
-
-local FadeIn: Tween = TweenService:Create(
-	WelcomeLabel,
-	TweenInfo.new(0.75, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-	{
-		TextTransparency = 0,
-		TextStrokeTransparency = 0.5
-	}
-)
-
-local FadeOut: Tween = TweenService:Create(
-	WelcomeLabel,
-	TweenInfo.new(0.75, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-	{
-		TextTransparency = 1,
-		TextStrokeTransparency = 1
-	}
-)
-
-FadeIn:Play()
-FadeIn.Completed:Wait()
-task.wait(2)
-FadeOut:Play()
-FadeOut.Completed:Wait()
-ScreenGui:Destroy()
