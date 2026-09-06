@@ -18,20 +18,19 @@ local FOVCircleRunning: boolean = false
 -- [[ MODULES ]]
 
 local Drawing: {any} = loadstring(game:HttpGet("https://raw.githubusercontent.com/SxpremeLxrps/Molo-Hub/main/MoloAPI"))()
-local Ping: number = Player:GetNetworkPing() * 1000
+local Ping: number = Player:GetNetworkPing()
 local VelocityHistory: {any} = {}  
-local LastUpdate: {any} = tick()
+
 
 -- [[ ENVIRONMENT ]]
 
-getgenv().Prediction = math.clamp(Ping / 1000, 0.08, 0.35)  
 getgenv().FOV = 150
 getgenv().AimKey = "C"
 getgenv().ESPKey = "M"
 getgenv().DontShootThesePeople = {}
-getgenv().BasePrediction = 0.18  -- Default fallback  
-getgenv().MinPrediction = 0.08   -- Minimum prediction value  
-getgenv().MaxPrediction = 0.35   -- Maximum prediction value
+getgenv().BasePrediction = 0.18
+getgenv().MinPrediction = 0.08
+getgenv().MaxPrediction = 0.35
 
 
 -- [[ CONSTANTS & UI CREATION VIA @ MOLOAPI ]]
@@ -198,41 +197,33 @@ local Options: {any} = {
 
 -- [[ LOCAL FUNCTIONS ]]
 
-local function CalculateDynamicPrediction(HumanoidRootPart: BasePart): Vector3  
-	local CurrentVelocity: Vector3 = HumanoidRootPart.AssemblyLinearVelocity  
-	
-	table.insert(VelocityHistory, CurrentVelocity)  
-	if #VelocityHistory > 5 then  
-		table.remove(VelocityHistory, 1)  
+local function CalculateDynamicPrediction(HumanoidRootPart: BasePart): Vector3
+	local CurrentVelocity: Vector3 = HumanoidRootPart.AssemblyLinearVelocity
+
+	table.insert(VelocityHistory, CurrentVelocity)
+
+	if #VelocityHistory > 5 then
+		table.remove(VelocityHistory, 1)
 	end
 
-	local SmoothedVelocity: Vector3 = Vector3.new(0, 0, 0)  
-	
-	for _, Velocity: Vector3 in ipairs(VelocityHistory) do  
-		SmoothedVelocity = SmoothedVelocity + Velocity  
-	end  
-	
-	SmoothedVelocity = SmoothedVelocity / #VelocityHistory
+	local SmoothedVelocity: Vector3 = Vector3.zero
 
-	local DeltaTime: number = tick() - LastUpdate  
-	LastUpdate = tick()
-
-	local PingPrediction: number = getgenv().BasePrediction  
-	local Success: boolean, PerformanceStats: Instance? = pcall(function()  
-		return Stats:FindFirstChild("PerformanceStats")  
-	end)
-
-	if Success and PerformanceStats then  
-		local PingStat: Instance? = PerformanceStats:FindFirstChild("Ping")  
-		if PingStat then  
-			local PingValue: number = PingStat:GetValue()  
-			PingPrediction = math.clamp(PingValue / 1000, getgenv().MinPrediction, getgenv().MaxPrediction)  
-		end  
+	for _, Velocity: Vector3 in ipairs(VelocityHistory) do
+		SmoothedVelocity += Velocity
 	end
 
-	return SmoothedVelocity * (PingPrediction * (1 + DeltaTime))  
+	SmoothedVelocity /= #VelocityHistory
+
+	local Ping: number = Player:GetNetworkPing()
+
+	local PredictionTime: number = math.clamp(
+		getgenv().BasePrediction + Ping,
+		getgenv().MinPrediction,
+		getgenv().MaxPrediction
+	)
+
+	return SmoothedVelocity * PredictionTime
 end
-
 
 local function MoveFOVCircle(): ()
 
