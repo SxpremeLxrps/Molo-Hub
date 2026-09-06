@@ -1,0 +1,95 @@
+local MoloAPI: {any} = {}
+
+export type Object = {
+	Remove: (self: Object) -> (),
+	Name: string,
+	ClassName: string,
+}
+
+export type API = {
+	new: (Type: string) -> Object,
+	Fonts: {
+		UI: number,
+		System: number,
+		Plex: number,
+		Monospace: number,
+	},
+	Properties: {[string]: any},
+}
+
+MoloAPI.Fonts = {
+	UI = 0,
+	System = 1,
+	Plex = 2,
+	Monospace = 3,
+}
+
+MoloAPI.Properties = {
+	Default = {
+		Drawing = {
+			Visible = "boolean",
+			ZIndex = "number",
+			Transparency = "number",
+		},
+		Object = {
+			Name = "string",
+			ClassName = "string",
+		},
+	},
+
+	Line = {
+		Color = "Color3",
+		Thickness = "number",
+		From = "Vector2",
+		To = "Vector2",
+	},
+
+	Circle = {
+		Color = "Color3",
+		Thickness = "number",
+		NumSides = "number",
+		Radius = "number",
+		Filled = "boolean",
+		Position = "Vector2",
+	},
+
+	Square = {
+		Color = "Color3",
+		Thickness = "number",
+		Size = "Vector2",
+		Position = "Vector2",
+		Filled = "boolean",
+	},
+
+	Text = {
+		Color = "Color3",
+		Text = "string",
+		Size = "number",
+		Center = "boolean",
+		Outline = "boolean",
+		OutlineColor = "Color3",
+		Position = "Vector2",
+		Font = "number",
+	},
+}
+
+local function CreateObject(Type: string): Object
+	assert(MoloAPI.Properties[Type], `Unsupported object type: {Type}`)
+
+	local Object = {
+		Name = Type,
+		ClassName = Type,
+	}
+
+	function Object:Remove()
+		table.clear(Object)
+	end
+
+	return Object
+end
+
+function MoloAPI.new(Type: string): Object
+	return CreateObject(Type)
+end
+
+return MoloAPI :: API
