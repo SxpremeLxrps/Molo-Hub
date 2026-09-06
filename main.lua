@@ -1,8 +1,8 @@
-_G.Prediction = 0.18 -- | Ping will be affected by this, be aware
-_G.FOV = 150
-_G.AimKey = "C"
-_G.ESPKey = "M"
-_G.DontShootThesePeople = {}
+getgenv().Prediction = 0.18 -- | Ping will be affected by this, be aware
+getgenv().FOV = 150
+getgenv().AimKey = "C"
+getgenv().ESPKey = "M"
+getgenv().DontShootThesePeople = {}
 
 -- [[ SERVICES ]]
 
@@ -23,15 +23,20 @@ local FOVCircleRunning: boolean = false
 -- [[ MODULES ]]
 
 local Drawing: {any} = loadstring(game:HttpGet(
-	"https://raw.githubusercontent.com/SxpremeLxrps/Molo-Hub/main/MoloAPI"
+"https://raw.githubusercontent.com/SxpremeLxrps/Molo-Hub/main/MoloAPI"
 ))()
 -- [[ CONSTANTS & UI CREATION VIA @ MOLOAPI ]]
 
+
+
+local TweenService: TweenService = game:GetService("TweenService")
+local PlayerGui: PlayerGui = Player:WaitForChild("PlayerGui")
 
 local ScreenGui: ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "MoloHubUI"
 ScreenGui.ResetOnSpawn = false
 ScreenGui.Parent = PlayerGui
+
 local WelcomeLabel: TextLabel = Instance.new("TextLabel")
 WelcomeLabel.Name = "WelcomeLabel"
 WelcomeLabel.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -39,10 +44,6 @@ WelcomeLabel.Position = UDim2.new(0.5, 0, 0.15, 0)
 WelcomeLabel.Size = UDim2.fromOffset(400, 60)
 WelcomeLabel.BackgroundTransparency = 1
 WelcomeLabel.Text = "Welcome to Molo Hub"
-local OW: Sound = Instance.new("Sound")
-OW.Parent = workspace
-OW:Play()
-OW.Volume = 1
 WelcomeLabel.TextTransparency = 1
 WelcomeLabel.TextStrokeTransparency = 1
 WelcomeLabel.TextScaled = true
@@ -70,9 +71,12 @@ local FadeOut: Tween = TweenService:Create(
 
 FadeIn:Play()
 FadeIn.Completed:Wait()
+
 task.wait(2)
+
 FadeOut:Play()
 FadeOut.Completed:Wait()
+
 ScreenGui:Destroy()
 
 local FOV_Circle: Drawing = Drawing.new("Circle")
@@ -80,7 +84,7 @@ FOV_Circle.Visible = true
 FOV_Circle.Color = Color3.fromRGB(255, 8, 169)
 FOV_Circle.Thickness = 1.5
 FOV_Circle.Transparency = 1
-FOV_Circle.Radius = _G.FOV
+FOV_Circle.Radius = getgenv().FOV
 FOV_Circle.Filled = false
 FOV_Circle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
 
@@ -124,15 +128,15 @@ UIS.InputBegan:Connect(function(Input: InputObject, GameProcessed: boolean)
 
 	local Key: string = Input.KeyCode.Name:lower()
 
-	if Key == _G.ESPKey:lower() then
+	if Key == getgenv().ESPKey:lower() then
 		ESPEnabled = not ESPEnabled
 		if ESPEnabled then
 			for _, V: Player in Players:GetPlayers() do
 				local Character: Model? = V.Character or V.CharacterAdded:Wait()
 
-				if Character and not Character:FindFirstChild("MoloHubHighlight") then
+				if Character and not Character:FindFirstChild("AutismHubHighlight") then
 					local Highlight: Highlight = Instance.new("Highlight")
-					Highlight.Name = "MoloHubHighlight"
+					Highlight.Name = "AutismHubHighlight"
 					Highlight.Adornee = Character
 					Highlight.FillColor = Color3.fromRGB(255, 51, 0)
 					Highlight.Parent = Character
@@ -144,7 +148,7 @@ UIS.InputBegan:Connect(function(Input: InputObject, GameProcessed: boolean)
 
 				if Character then
 					for _, Object: Instance in Character:GetChildren() do
-						if Object:IsA("Highlight") and Object.Name == "MoloHubHighlight" then
+						if Object:IsA("Highlight") and Object.Name == "AutismHubHighlight" then
 							Object:Destroy()
 						end
 					end
@@ -153,7 +157,7 @@ UIS.InputBegan:Connect(function(Input: InputObject, GameProcessed: boolean)
 		end
 	end
 
-	if Key == _G.AimKey:lower() then
+	if Key == getgenv().AimKey:lower() then
 		SilentAim = not SilentAim
 
 		if SilentAim then
@@ -176,7 +180,7 @@ __index = hookmetamethod(game, "__index", function(Self, Index)
 		local Target: Instance = nil
 
 		for _, V: Player in pairs(Players:GetPlayers()) do
-			if not table.find(_G.DontShootThesePeople, V.Name) then
+			if not table.find(getgenv().DontShootThesePeople, V.Name) then
 				if V ~= Player and V.Character then
 					local Humanoid: Humanoid = V.Character:WaitForChild("Humanoid")
 					local HumanoidRootPart: BasePart = V.Character:WaitForChild("HumanoidRootPart")
@@ -207,13 +211,11 @@ __index = hookmetamethod(game, "__index", function(Self, Index)
 			local HumanoidRootPart: BasePart = Target:WaitForChild("HumanoidRootPart")
 
 			if HumanoidRootPart then
-				local PredictionOffset: Vector3 = HumanoidRootPart.AssemblyLinearVelocity * _G.Prediction
-				
+				local PredictionOffset: Vector3 = HumanoidRootPart.AssemblyLinearVelocity * getgenv().Prediction
 				return CFrame.new(HumanoidRootPart.CFrame.Position + PredictionOffset + Vector3.new(0, -1, 0))
 			end
 		end
 	end
-	
 	return __index(Self, Index)
 end)
 
