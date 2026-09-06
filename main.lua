@@ -1,41 +1,46 @@
 -- [[ SERVICES ]]
 
-local Player: Player = game:GetService("Players").LocalPlayer
-local Players: Players = game:GetService("Players")
-local RS: RunService= game:GetService("RunService")
-local Mouse: Mouse = Player:GetMouse()
-local MouseTarget: Instance? = Mouse.Target
-local MouseHit: CFrame = Mouse.Hit
-local UIS: UserInputService = game:GetService("UserInputService")
-local Camera: Camera = workspace:WaitForChild("Camera")
-local TweenService: TweenService = game:GetService("TweenService") 
-local PlayerGui: PlayerGui = Player:WaitForChild("PlayerGui")
-local Stats: Stats = game:GetService("Stats")
-local SilentAim: boolean = true
-local ESPEnabled: boolean = false
-local FOVCircleRunning: boolean = false
+local Player: Player = game:GetService("Players").LocalPlayer  
+local Players: Players = game:GetService("Players")  
+local RS: RunService = game:GetService("RunService")  
+local ReplicatedStorage: Instance = game:GetService("ReplicatedStorage")  
+local Mouse: Mouse = Player:GetMouse()  
+local MouseTarget: Instance? = Mouse.Target  
+local MouseHit: CFrame = Mouse.Hit  
+local UIS: UserInputService = game:GetService("UserInputService")  
+local Camera: Camera = workspace:WaitForChild("Camera")  
+local TweenService: TweenService = game:GetService("TweenService")  
+local PlayerGui: PlayerGui = Player:WaitForChild("PlayerGui")  
+local Stats: Stats = game:GetService("Stats")  
+local SilentAim: boolean = true  
+local ESPEnabled: boolean = false  
+local FOVCircleRunning: boolean = false  
+local ScriptVarLib: {any} = nil  
+local CurrentTarget: Instance? = nil  
+local InjectionAttempted: boolean = false
 
 -- [[ MODULES ]]
 
-local Drawing: {any} = loadstring(game:HttpGet("https://raw.githubusercontent.com/SxpremeLxrps/Molo-Hub/main/MoloAPI"))()
-local Ping: number = Player:GetNetworkPing()
-local VelocityHistory: {any} = {}  
+local Drawing: {any}  
+local DrawingSuccess: boolean, DrawingModule = pcall(function()  
+	Drawing = loadstring(game:HttpGet("https://raw.githubusercontent.com/SxpremeLxrps/Molo-Hub/main/MoloAPI"))()  
+end)
 
+local Ping: number = Player:GetNetworkPing()  
+local VelocityHistory: {Vector3} = {}
 
 -- [[ ENVIRONMENT ]]
 
-getgenv().FOV = 150
-getgenv().AimKey = "C"
-getgenv().ESPKey = "M"
-getgenv().DontShootThesePeople = {}
-getgenv().BasePrediction = 0.18
-getgenv().MinPrediction = 0.08
+getgenv().FOV = 150  
+getgenv().AimKey = "C"  
+getgenv().ESPKey = "M"  
+getgenv().DontShootThesePeople = {}  
+getgenv().BasePrediction = 0.18  
+getgenv().MinPrediction = 0.08  
 getgenv().MaxPrediction = 0.35
 
+-- [[ CONSTANTS & UI CREATION ]]
 
--- [[ CONSTANTS & UI CREATION VIA @ MOLOAPI ]]
-
--- // Container
 local ScreenGui: ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "MoloHubUI"
 ScreenGui.ResetOnSpawn = false
@@ -181,162 +186,171 @@ TitleFadeOut.Completed:Wait()
 IsSpinning = false
 ScreenGui:Destroy()
 
-local FOV_Circle: Drawing = Drawing.new("Circle")
-FOV_Circle.Visible = true
-FOV_Circle.Color = Color3.fromRGB(255, 8, 169)
-FOV_Circle.Thickness = 1.5
-FOV_Circle.Transparency = 1
-FOV_Circle.Radius = getgenv().FOV
-FOV_Circle.Filled = false
-FOV_Circle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-
-local Options: {any} = {
-	Torso = "HumanoidRootPart",
-	Head = "HumanoidRootPart"
+local Options: {[string]: string} = {  
+	Torso = "HumanoidRootPart",  
+	Head = "HumanoidRootPart"  
 }
 
 -- [[ LOCAL FUNCTIONS ]]
 
-local function CalculateDynamicPrediction(HumanoidRootPart: BasePart): Vector3
-	local CurrentVelocity: Vector3 = HumanoidRootPart.AssemblyLinearVelocity
-
+local function CalculateDynamicPrediction(HumanoidRootPart: BasePart): Vector3  
+	local CurrentVelocity: Vector3 = HumanoidRootPart.AssemblyLinearVelocity  
 	table.insert(VelocityHistory, CurrentVelocity)
 
-	if #VelocityHistory > 5 then
-		table.remove(VelocityHistory, 1)
+	if #VelocityHistory > 5 then  
+		table.remove(VelocityHistory, 1)  
 	end
 
-	local SmoothedVelocity: Vector3 = Vector3.zero
-
-	for _, Velocity: Vector3 in ipairs(VelocityHistory) do
-		SmoothedVelocity += Velocity
-	end
-
+	local SmoothedVelocity: Vector3 = Vector3.zero  
+	for _, Velocity: Vector3 in ipairs(VelocityHistory) do  
+		SmoothedVelocity += Velocity  
+	end  
 	SmoothedVelocity /= #VelocityHistory
 
-	local Ping: number = Player:GetNetworkPing()
-
-	local PredictionTime: number = math.clamp(
-		getgenv().BasePrediction + Ping,
-		getgenv().MinPrediction,
-		getgenv().MaxPrediction
+	local CurrentPing: number = Player:GetNetworkPing()  
+	local PredictionTime: number = math.clamp(  
+		getgenv().BasePrediction + (CurrentPing / 1000),  
+		getgenv().MinPrediction,  
+		getgenv().MaxPrediction  
 	)
 
-	return SmoothedVelocity * PredictionTime
+	return SmoothedVelocity * PredictionTime  
 end
 
-local function MoveFOVCircle(): ()
+local function GetBestTarget(): (Instance?, number)  
+	local BestDistance: number = math.huge  
+	local BestTarget: Instance? = nil
 
-	if FOVCircleRunning then
-		return
+	for _, PlayerInstance: Player in pairs(Players:GetPlayers()) do  
+		if not table.find(getgenv().DontShootThesePeople, PlayerInstance.Name) then  
+			if PlayerInstance ~= Player and PlayerInstance.Character then  
+				local Humanoid: Humanoid? = PlayerInstance.Character:FindFirstChild("Humanoid")  
+				local HumanoidRootPart: BasePart? = PlayerInstance.Character:FindFirstChild("HumanoidRootPart")
+
+				if Humanoid and HumanoidRootPart and Humanoid.Health > 0 then  
+					local ScreenPosition: Vector3, OnScreen: boolean = Camera:WorldToScreenPoint(HumanoidRootPart.Position)  
+					if OnScreen then  
+						local MousePosition: Vector2 = Vector2.new(Mouse.X, Mouse.Y)  
+						local TargetPosition: Vector2 = Vector2.new(ScreenPosition.X, ScreenPosition.Y)  
+						local DistanceMagnitude: number = (MousePosition - TargetPosition).Magnitude
+
+						if DistanceMagnitude < BestDistance and DistanceMagnitude < FOV_Circle.Radius then  
+							BestDistance = DistanceMagnitude  
+							BestTarget = PlayerInstance.Character  
+						end  
+					end  
+				end  
+			end  
+		end  
 	end
 
-	FOVCircleRunning = true
-
-	task.spawn(function()
-		while FOVCircleRunning do
-			local MousePosition: Vector2 = UIS:GetMouseLocation()
-
-			FOV_Circle.Position = MousePosition
-			task.wait()
-		end
-	end)
+	return BestTarget, BestDistance  
 end
 
-local function StopFOVCircle(): ()
-	FOVCircleRunning = false
-end
-
-UIS.InputBegan:Connect(function(Input: InputObject, GameProcessed: boolean)
-	if GameProcessed then
-		return
+local function InjectGameHooks(): ()  
+	if InjectionAttempted then  
+		return  
 	end
 
-	if Input.UserInputType ~= Enum.UserInputType.Keyboard then
-		return
+	InjectionAttempted = true
+
+	-- Find VarLib module  
+	local CharacterScript: Instance? = Player.Character and Player.Character:FindFirstChildWhichIsA("Script")  
+	if not CharacterScript then  
+		repeat task.wait() until Player.Character  
+		CharacterScript = Player.Character:FindFirstChildWhichIsA("Script")  
 	end
 
-	local Key: string = Input.KeyCode.Name:lower()
+	if CharacterScript and CharacterScript:FindFirstChild("VarLib") then  
+		local Success: boolean, ModuleResult: {any} = pcall(function()  
+			ScriptVarLib = require(CharacterScript.VarLib)  
+		end)
 
-	if Key == getgenv().ESPKey:lower() then
-		ESPEnabled = not ESPEnabled
-		if ESPEnabled then
-			for _, V: Player in Players:GetPlayers() do
-				local Character: Model? = V.Character or V.CharacterAdded:Wait()
+		if Success and ScriptVarLib and ScriptVarLib.inv then  
+			local OriginalInv: (any, any) -> any = ScriptVarLib.inv.OnClientInvoke
 
-				if Character and not Character:FindFirstChild("MoloHubHighlight") then
-					local Highlight: Highlight = Instance.new("Highlight")
-					Highlight.Name = "MoloHubHighlight"
-					Highlight.Adornee = Character
-					Highlight.FillColor = Color3.fromRGB(255, 0, 0)
-					Highlight.Parent = Character
-				end
+			ScriptVarLib.inv.OnClientInvoke = function(Param1: any, Param2: any): any  
+				if Param2 == "mouse" and SilentAim and CurrentTarget then  
+					local HumanoidRootPart: BasePart? = CurrentTarget:FindFirstChild("HumanoidRootPart")  
+					if HumanoidRootPart then  
+						local PredictionOffset: Vector3 = CalculateDynamicPrediction(HumanoidRootPart)  
+						return HumanoidRootPart.Position + PredictionOffset + Vector3.new(0, -1, 0)  
+					end  
+				end  
+				return OriginalInv(Param1, Param2)  
 			end
-		else
-			for _, V: Player in Players:GetPlayers() do
-				local Character: Model? = V.Character
 
-				if Character then
-					for _, Object: Instance in Character:GetChildren() do
-						if Object:IsA("Highlight") and Object.Name == "MoloHubHighlight" then
-							Object:Destroy()
-						end
-					end
-				end
+			local MainEvent: RemoteEvent? = ReplicatedStorage:FindFirstChild("MAINEVENT")
+
+			if MainEvent then  
+				local OriginalFireServer: (any, any, ...any) -> any = MainEvent.FireServer
+
+				MainEvent.FireServer = function(Self: any, EventType: any, EventData: any, ...): any  
+					if EventType == "MOUSE" and SilentAim and CurrentTarget then  
+						local HumanoidRootPart: BasePart? = CurrentTarget:FindFirstChild("HumanoidRootPart")  
+						if HumanoidRootPart then  
+							local PredictionOffset: Vector3 = CalculateDynamicPrediction(HumanoidRootPart)  
+							EventData = HumanoidRootPart.Position + PredictionOffset  
+						end  
+					end  
+					return OriginalFireServer(Self, EventType, EventData, ...)  
+				end  
 			end
+		end  
+	end
+
+	local function MoveFOVCircle(): ()  
+		if FOVCircleRunning then  
+			return  
 		end
+
+		FOVCircleRunning = true  
+		task.spawn(function()  
+			while FOVCircleRunning do  
+				local MousePosition: Vector2 = UIS:GetMouseLocation()  
+				FOV_Circle.Position = MousePosition  
+				task.wait()  
+			end  
+		end)  
 	end
 
-	if Key == getgenv().AimKey:lower() then
-		SilentAim = not SilentAim
+	local function StopFOVCircle(): ()  
+		FOVCircleRunning = false  
+	end
 
-		if SilentAim then
-			FOV_Circle.Color = Color3.fromRGB(255, 255, 255)
-		else
-			FOV_Circle.Color = Color3.fromRGB(255, 8, 169)
+	-- [[ INPUT HANDLING ]]
+
+	UIS.InputBegan:Connect(function(Input: InputObject, GameProcessed: boolean)  
+		if GameProcessed then  
+			return  
 		end
-	end
-end)
 
-local OriginalIndex: (Self: Instance, Index: string) -> any  
+		if Input.UserInputType ~= Enum.UserInputType.Keyboard then  
+			return  
+		end
 
-OriginalIndex = hookmetamethod(game, "__index", function(Self: Instance, Index: string): any  
-	if Self == Mouse and Index == "Target" then  
-		return MouseTarget  
-	end
+		local Key: string = Input.KeyCode.Name:lower()
 
-	if Self == Mouse and Index == "Hit" and SilentAim then  
-		local Distance: number = 9e9  
-		local Target: Instance? = nil
-
-		for _, PlayerInstance: Player in pairs(Players:GetPlayers()) do  
-			if not table.find(getgenv().DontShootThesePeople, PlayerInstance.Name) then  
-				if PlayerInstance ~= Player and PlayerInstance.Character then  
-					local Humanoid: Humanoid? = PlayerInstance.Character:FindFirstChild("Humanoid")  
-					local HumanoidRootPart: BasePart? = PlayerInstance.Character:FindFirstChild("HumanoidRootPart")
-
-					if Humanoid and HumanoidRootPart and Humanoid.Health > 0 then  
-						local CastingFrom: CFrame = CFrame.new(  
-							Camera.CFrame.Position,  
-							HumanoidRootPart.CFrame.Position  
-						) * CFrame.new(0, 0, -4)
-
-						local RayCast: Ray = Ray.new(  
-							CastingFrom.Position,  
-							CastingFrom.LookVector * 9000  
-						)
-
-						local PartPosition: Vector3, OnScreen: boolean = Camera:WorldToScreenPoint(HumanoidRootPart.Position)
-
-						if OnScreen then  
-							local Magnitude: number = (  
-								Vector2.new(Mouse.X, Mouse.Y) -   
-									Vector2.new(PartPosition.X, PartPosition.Y)  
-							).Magnitude
-
-							if Magnitude < Distance and Magnitude < FOV_Circle.Radius then  
-								Distance = Magnitude  
-								Target = PlayerInstance.Character  
+		if Key == getgenv().ESPKey:lower() then  
+			ESPEnabled = not ESPEnabled  
+			if ESPEnabled then  
+				for _, PlayerInstance: Player in Players:GetPlayers() do  
+					local Character: Model? = PlayerInstance.Character or PlayerInstance.CharacterAdded:Wait()  
+					if Character and not Character:FindFirstChild("MoloHubHighlight") then  
+						local Highlight: Highlight = Instance.new("Highlight")  
+						Highlight.Name = "MoloHubHighlight"  
+						Highlight.Adornee = Character  
+						Highlight.FillColor = Color3.fromRGB(255, 0, 0)  
+						Highlight.Parent = Character  
+					end  
+				end  
+			else  
+				for _, PlayerInstance: Player in Players:GetPlayers() do  
+					local Character: Model? = PlayerInstance.Character  
+					if Character then  
+						for _, Object: Instance in Character:GetChildren() do  
+							if Object:IsA("Highlight") and Object.Name == "MoloHubHighlight" then  
+								Object:Destroy()  
 							end  
 						end  
 					end  
@@ -344,19 +358,55 @@ OriginalIndex = hookmetamethod(game, "__index", function(Self: Instance, Index: 
 			end  
 		end
 
-		if Target then  
-			local HumanoidRootPart: BasePart? = Target:FindFirstChild("HumanoidRootPart")  
-			if HumanoidRootPart then  
-				local PredictionOffset: Vector3 = CalculateDynamicPrediction(HumanoidRootPart)  
-				return CFrame.new(  
-					HumanoidRootPart.CFrame.Position +   
-						PredictionOffset +   
-						Vector3.new(0, -1, 0)  
-				)  
+		if Key == getgenv().AimKey:lower() then  
+			SilentAim = not SilentAim  
+			InjectGameHooks()
+
+			if SilentAim then  
+				FOV_Circle.Color = Color3.fromRGB(255, 255, 255)  
+			else  
+				FOV_Circle.Color = Color3.fromRGB(255, 8, 169)  
 			end  
 		end  
-	end
+	end)
 
-	return OriginalIndex(Self, Index)  
-end)
-MoveFOVCircle()
+	-- [[ METAMETHOD HOOK ]]
+
+	local OriginalIndex: (Self: Instance, Index: string) -> any
+
+	OriginalIndex = hookmetamethod(game, "__index", function(Self: Instance, Index: string): any  
+		if Self == Mouse and Index == "Target" then  
+			return MouseTarget  
+		end
+
+		if Self == Mouse and Index == "Hit" and SilentAim then  
+			local TargetCandidate: Instance?  
+			local TargetDistance: number  
+			TargetCandidate, TargetDistance = GetBestTarget()
+
+			if TargetCandidate then  
+				CurrentTarget = TargetCandidate  
+				local HumanoidRootPart: BasePart? = TargetCandidate:FindFirstChild("HumanoidRootPart")  
+				if HumanoidRootPart then  
+					local PredictionOffset: Vector3 = CalculateDynamicPrediction(HumanoidRootPart)  
+					return CFrame.new(HumanoidRootPart.CFrame.Position + PredictionOffset + Vector3.new(0, -1, 0))  
+				end  
+			else  
+				CurrentTarget = nil  
+			end  
+		end
+
+		return OriginalIndex(Self, Index)  
+	end)
+
+	-- [[ INITIALIZATION ]]
+
+	MoveFOVCircle()  
+	InjectGameHooks()
+
+	Player.CharacterAdded:Connect(function()  
+		InjectionAttempted = false  
+		task.wait(2)  
+		InjectGameHooks()  
+	end)
+end
