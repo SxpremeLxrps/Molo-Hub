@@ -22,8 +22,9 @@ local FOVCircleRunning: boolean = false
 
 -- [[ MODULES ]]
 
-local Drawing: {any} = loadstring(game:HttpGet("https://raw.githubusercontent.com/SxpremeLxrps/Molo-Hub/blob/main/MoloAPI"))()
-
+local Drawing: {any} = loadstring(game:HttpGet(
+	"https://raw.githubusercontent.com/SxpremeLxrps/Molo-Hub/main/MoloAPI"
+))()
 -- [[ CONSTANTS & UI CREATION VIA @ MOLOAPI ]]
 
 
