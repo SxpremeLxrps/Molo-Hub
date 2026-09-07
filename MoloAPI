@@ -4,6 +4,15 @@ export type Object = {
 	Remove: (self: Object) -> (),
 	Name: string,
 	ClassName: string,
+	Visible: boolean,
+	ZIndex: number,
+	Transparency: number,
+	Color: Color3,
+	Thickness: number,
+	NumSides: number,
+	Radius: number,
+	Filled: boolean,
+	Position: Vector2,
 }
 
 export type API = {
@@ -31,17 +40,11 @@ MoloAPI.Properties = {
 			ZIndex = "number",
 			Transparency = "number",
 		},
+
 		Object = {
 			Name = "string",
 			ClassName = "string",
 		},
-	},
-
-	Line = {
-		Color = "Color3",
-		Thickness = "number",
-		From = "Vector2",
-		To = "Vector2",
 	},
 
 	Circle = {
@@ -52,40 +55,162 @@ MoloAPI.Properties = {
 		Filled = "boolean",
 		Position = "Vector2",
 	},
-
-	Square = {
-		Color = "Color3",
-		Thickness = "number",
-		Size = "Vector2",
-		Position = "Vector2",
-		Filled = "boolean",
-	},
-
-	Text = {
-		Color = "Color3",
-		Text = "string",
-		Size = "number",
-		Center = "boolean",
-		Outline = "boolean",
-		OutlineColor = "Color3",
-		Position = "Vector2",
-		Font = "number",
-	},
 }
 
-local function CreateObject(Type: string): Object
-	assert(MoloAPI.Properties[Type], `Unsupported object type: {Type}`)
+local Players: Players = game:GetService("Players")
+local Player: Player = Players.LocalPlayer
+local PlayerGui: PlayerGui = Player:WaitForChild("PlayerGui")
 
-	local Object = {
-		Name = Type,
-		ClassName = Type,
-	}
+local DrawingGui: ScreenGui = Instance.new("ScreenGui")
+DrawingGui.Name = "MoloDrawing"
+DrawingGui.IgnoreGuiInset = true
+DrawingGui.ResetOnSpawn = false
+DrawingGui.DisplayOrder = 10000
+DrawingGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+DrawingGui.Parent = PlayerGui
 
-	function Object:Remove()
+local function CreateCircle(): Object
+	local Container: Frame = Instance.new("Frame")
+	Container.Name = "Circle"
+	Container.AnchorPoint = Vector2.new(0.5, 0.5)
+	Container.BackgroundTransparency = 1
+	Container.BorderSizePixel = 0
+	Container.Size = UDim2.fromOffset(300, 300)
+	Container.Position = UDim2.fromOffset(0, 0)
+	Container.Visible = true
+	Container.Parent = DrawingGui
+
+	local Corner: UICorner = Instance.new("UICorner")
+	Corner.CornerRadius = UDim.new(1, 0)
+	Corner.Parent = Container
+
+	local Stroke: UIStroke = Instance.new("UIStroke")
+	Stroke.Thickness = 1.5
+	Stroke.Transparency = 0.5
+	Stroke.Color = Color3.fromRGB(255, 8, 169)
+	Stroke.Parent = Container
+
+	local Object = {} :: any
+
+	Object.Name = "Circle"
+	Object.ClassName = "Circle"
+
+	Object.Visible = true
+	Object.ZIndex = 0
+	Object.Transparency = 0.5
+	Object.Color = Color3.fromRGB(255, 8, 169)
+	Object.Thickness = 1.5
+	Object.NumSides = 64
+	Object.Radius = 150
+	Object.Filled = false
+	Object.Position = Vector2.zero
+
+	local Removed: boolean = false
+
+	local function UpdateSize(): ()
+		if Removed then
+			return
+		end
+
+		local Diameter: number = math.max(0, Object.Radius * 2)
+
+		Container.Size = UDim2.fromOffset(
+			Diameter,
+			Diameter
+		)
+	end
+
+	local function UpdatePosition(): ()
+		if Removed then
+			return
+		end
+
+		Container.Position = UDim2.fromOffset(
+			Object.Position.X,
+			Object.Position.Y
+		)
+	end
+
+	local function UpdateVisual(): ()
+		if Removed then
+			return
+		end
+
+		Container.Visible = Object.Visible
+		Container.ZIndex = Object.ZIndex
+
+		Stroke.Color = Object.Color
+		Stroke.Thickness = Object.Thickness
+		Stroke.Transparency = math.clamp(Object.Transparency, 0, 1)
+
+		if Object.Filled then
+			Container.BackgroundColor3 = Object.Color
+			Container.BackgroundTransparency =
+				math.clamp(Object.Transparency, 0, 1)
+
+			Stroke.Transparency =
+				math.clamp(Object.Transparency, 0, 1)
+		else
+			Container.BackgroundTransparency = 1
+			Stroke.Transparency =
+				math.clamp(Object.Transparency, 0, 1)
+		end
+
+		UpdateSize()
+		UpdatePosition()
+	end
+
+	function Object:Remove(): ()
+		if Removed then
+			return
+		end
+
+		Removed = true
+
+		if Container then
+			Container:Destroy()
+		end
+
 		table.clear(Object)
 	end
 
+	setmetatable(Object, {
+		__newindex = function(Self: {[string]: any}, Key: string, Value: any)
+			rawset(Self, Key, Value)
+
+			if Key == "Radius" then
+				UpdateSize()
+			elseif Key == "Position" then
+				UpdatePosition()
+			elseif
+				Key == "Visible"
+				or Key == "ZIndex"
+				or Key == "Transparency"
+				or Key == "Color"
+				or Key == "Thickness"
+				or Key == "Filled"
+			then
+				UpdateVisual()
+			end
+		end,
+	})
+
+	UpdateVisual()
+
 	return Object
+end
+
+local function CreateObject(Type: string): Object
+	assert(
+		MoloAPI.Properties[Type],
+		`Unsupported object type: {Type}`
+	)
+
+	if Type == "Circle" then
+		return CreateCircle()
+	end
+
+	error(`Object type "{Type}" is not implemented`)
 end
 
 function MoloAPI.new(Type: string): Object
