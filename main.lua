@@ -344,12 +344,6 @@ LoadingFadeOut:Play()
 LineShrink:Play()
 TitleFadeOut.Completed:Wait()
 SpinTween:Cancel()
-if EntranceSound.IsPlaying then
-	EntranceSound.Ended:Wait()
-end
-if ExitSound.IsPlaying then
-	ExitSound.Ended:Wait()
-end
 ScreenGui:Destroy()
 
 -- [[ DRAWING FALLBACK ]]
