@@ -340,10 +340,11 @@ SpinTween:Cancel()
 
 
 if EntranceSound.IsPlaying then
-	EntranceSound.Ended:Wait()
+	EntranceSound:Stop()
 end
+
 if ExitSound.IsPlaying then
-	ExitSound.Ended:Wait()
+	ExitSound:Stop()
 end
 
 ScreenGui:Destroy()
@@ -352,45 +353,65 @@ ScreenGui:Destroy()
 -- [[ DRAWING FALLBACK ]]
 
 local Drawing: {any}  
-local ESP: {any} = loadstring(game:HttpGet("https://raw.githubusercontent.com/SxpremeLxrps/Molo-Hub/main/ESP"))()
-local DrawingSuccess: boolean = false
-
-
+local ESP: {any}? = nil  
+local DrawingSuccess: boolean = false  
+local ESPEnabled: boolean = false
 
 local function InitializeDrawing(): ()  
-	DrawingSuccess = pcall(function()  
-		Drawing = loadstring(game:HttpGet("https://raw.githubusercontent.com/SxpremeLxrps/Molo-Hub/main/MoloAPI"))()  
-	end)
+	local DrawingLibs = {  
+		"https://raw.githubusercontent.com/2dgeneralspam1/Utilities/main/LineLib.lua",  
+		"https://raw.githubusercontent.com/Kinlei/DrawingLib/main/DrawingLib.lua",  
+		"https://raw.githubusercontent.com/shlexware/Drawing/refs/heads/main/init.lua",  
+		"https://raw.githubusercontent.com/Syntaxx64/3DHub/main/Drawing.lua"  
+	}
+
+	for _, URL in ipairs(DrawingLibs) do  
+		local Success, Result = pcall(function()  
+			Drawing = loadstring(game:HttpGet(URL))()  
+			DrawingSuccess = true  
+			return true  
+		end)
+
+		if Success then  
+			break  
+		end  
+	end
 
 	if not DrawingSuccess then  
 		Drawing = {  
 			new = function(ShapeType: string): any  
 				if ShapeType == "Circle" then  
 					local Circle = Instance.new("ImageLabel")  
-					Circle.Name = "FOVCircle"  
+					Circle.Name = "MoloHub_FOVCircle"  
 					Circle.Parent = PlayerGui  
+					Circle.AnchorPoint = Vector2.new(0.5, 0.5)  
 					Circle.Position = UDim2.new(0.5, 0, 0.5, 0)  
-					Circle.Size = UDim2.new(0, 300, 0, 300)  
+					Circle.Size = UDim2.new(0, getgenv().FOV * 2, 0, getgenv().FOV * 2)  
 					Circle.BackgroundTransparency = 1  
 					Circle.Image = "rbxasset://textures/ui/Cursors/StarCursor.png"  
-					Circle.ImageTransparency = 0.3
+					Circle.ImageTransparency = 0.3  
+					Circle.ImageColor3 = Color3.fromRGB(255, 8, 169)
 
 					return {  
 						Visible = true,  
-						Color = Color3.new(1, 0, 0),  
+						Color = Color3.fromRGB(255, 8, 169),  
 						Thickness = 1.5,  
 						Transparency = 0.5,  
-						Radius = 150,  
+						Radius = getgenv().FOV,  
 						Filled = false,  
 						Position = Vector2.new(0, 0),  
 						Remove = function()  
-							Circle:Destroy()  
+							if Circle.Parent then  
+								Circle:Destroy()  
+							end  
 						end  
 					}  
 				end  
+				return {}  
 			end  
 		}  
-	end  
+		DrawingSuccess = true  
+	end
 end
 
 InitializeDrawing()
