@@ -1,9 +1,12 @@
-local MoloAPI: {any} = {}
+--// MoloAPI - Drawing Circle GUI implementation
+
+local MoloAPI = {}
 
 export type Object = {
 	Remove: (self: Object) -> (),
 	Name: string,
 	ClassName: string,
+
 	Visible: boolean,
 	ZIndex: number,
 	Transparency: number,
@@ -17,15 +20,18 @@ export type Object = {
 
 export type API = {
 	new: (Type: string) -> Object,
+
 	Fonts: {
 		UI: number,
 		System: number,
 		Plex: number,
 		Monospace: number,
 	},
+
 	Properties: {[string]: any},
 }
 
+--// Fonts
 MoloAPI.Fonts = {
 	UI = 0,
 	System = 1,
@@ -33,6 +39,7 @@ MoloAPI.Fonts = {
 	Monospace = 3,
 }
 
+--// Supported properties
 MoloAPI.Properties = {
 	Default = {
 		Drawing = {
@@ -57,20 +64,34 @@ MoloAPI.Properties = {
 	},
 }
 
-local Players: Players = game:GetService("Players")
-local Player: Player = Players.LocalPlayer
-local PlayerGui: PlayerGui = Player:WaitForChild("PlayerGui")
+--// Services
+local Players = game:GetService("Players")
 
-local DrawingGui: ScreenGui = Instance.new("ScreenGui")
-DrawingGui.Name = "MoloDrawing"
-DrawingGui.IgnoreGuiInset = true
-DrawingGui.ResetOnSpawn = false
-DrawingGui.DisplayOrder = 10000
-DrawingGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-DrawingGui.Parent = PlayerGui
+local Player = Players.LocalPlayer
 
+if not Player then
+	error("MoloAPI must run on the client")
+end
+
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+--// Drawing GUI
+local DrawingGui = PlayerGui:FindFirstChild("MoloDrawing")
+
+if not DrawingGui then
+	DrawingGui = Instance.new("ScreenGui")
+	DrawingGui.Name = "MoloDrawing"
+	DrawingGui.IgnoreGuiInset = true
+	DrawingGui.ResetOnSpawn = false
+	DrawingGui.DisplayOrder = 10000
+	DrawingGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	DrawingGui.Parent = PlayerGui
+end
+
+--// Circle
 local function CreateCircle(): Object
-	local Container: Frame = Instance.new("Frame")
+	local Container = Instance.new("Frame")
+
 	Container.Name = "Circle"
 	Container.AnchorPoint = Vector2.new(0.5, 0.5)
 	Container.BackgroundTransparency = 1
@@ -78,41 +99,50 @@ local function CreateCircle(): Object
 	Container.Size = UDim2.fromOffset(300, 300)
 	Container.Position = UDim2.fromOffset(0, 0)
 	Container.Visible = true
+	Container.ZIndex = 0
 	Container.Parent = DrawingGui
 
-	local Corner: UICorner = Instance.new("UICorner")
+	local Corner = Instance.new("UICorner")
 	Corner.CornerRadius = UDim.new(1, 0)
 	Corner.Parent = Container
 
-	local Stroke: UIStroke = Instance.new("UIStroke")
+	local Stroke = Instance.new("UIStroke")
 	Stroke.Thickness = 1.5
 	Stroke.Transparency = 0.5
 	Stroke.Color = Color3.fromRGB(255, 8, 169)
 	Stroke.Parent = Container
 
+	--// IMPORTANT:
+	--// Keep actual values outside Object so __newindex
+	--// fires every time a public property is changed.
+	local Data = {
+		Name = "Circle",
+		ClassName = "Circle",
+
+		Visible = true,
+		ZIndex = 0,
+		Transparency = 0.5,
+		Color = Color3.fromRGB(255, 8, 169),
+
+		Thickness = 1.5,
+		NumSides = 64,
+		Radius = 150,
+
+		Filled = false,
+		Position = Vector2.zero,
+	}
+
+	local Removed = false
+
 	local Object = {} :: any
 
-	Object.Name = "Circle"
-	Object.ClassName = "Circle"
-
-	Object.Visible = true
-	Object.ZIndex = 0
-	Object.Transparency = 0.5
-	Object.Color = Color3.fromRGB(255, 8, 169)
-	Object.Thickness = 1.5
-	Object.NumSides = 64
-	Object.Radius = 150
-	Object.Filled = false
-	Object.Position = Vector2.zero
-
-	local Removed: boolean = false
-
-	local function UpdateSize(): ()
+	--// Update size
+	local function UpdateSize()
 		if Removed then
 			return
 		end
 
-		local Diameter: number = math.max(0, Object.Radius * 2)
+		local Diameter = math.max(0, Data.Radius * 2)
 
 		Container.Size = UDim2.fromOffset(
 			Diameter,
@@ -120,47 +150,48 @@ local function CreateCircle(): Object
 		)
 	end
 
-	local function UpdatePosition(): ()
+	--// Update position
+	local function UpdatePosition()
 		if Removed then
 			return
 		end
 
 		Container.Position = UDim2.fromOffset(
-			Object.Position.X,
-			Object.Position.Y
+			Data.Position.X,
+			Data.Position.Y
 		)
 	end
 
-	local function UpdateVisual(): ()
+	--// Update visual properties
+	local function UpdateVisual()
 		if Removed then
 			return
 		end
 
-		Container.Visible = Object.Visible
-		Container.ZIndex = Object.ZIndex
+		Container.Visible = Data.Visible
+		Container.ZIndex = Data.ZIndex
 
-		Stroke.Color = Object.Color
-		Stroke.Thickness = Object.Thickness
-		Stroke.Transparency = math.clamp(Object.Transparency, 0, 1)
+		Stroke.Color = Data.Color
+		Stroke.Thickness = math.max(0, Data.Thickness)
 
-		if Object.Filled then
-			Container.BackgroundColor3 = Object.Color
-			Container.BackgroundTransparency =
-				math.clamp(Object.Transparency, 0, 1)
+		local Transparency = math.clamp(
+			Data.Transparency,
+			0,
+			1
+		)
 
-			Stroke.Transparency =
-				math.clamp(Object.Transparency, 0, 1)
+		Stroke.Transparency = Transparency
+
+		if Data.Filled then
+			Container.BackgroundColor3 = Data.Color
+			Container.BackgroundTransparency = Transparency
 		else
 			Container.BackgroundTransparency = 1
-			Stroke.Transparency =
-				math.clamp(Object.Transparency, 0, 1)
 		end
-
-		UpdateSize()
-		UpdatePosition()
 	end
 
-	function Object:Remove(): ()
+	--// Remove
+	function Object:Remove()
 		if Removed then
 			return
 		end
@@ -171,17 +202,29 @@ local function CreateCircle(): Object
 			Container:Destroy()
 		end
 
+		table.clear(Data)
 		table.clear(Object)
 	end
 
+	--// Property access
 	setmetatable(Object, {
-		__newindex = function(Self: {[string]: any}, Key: string, Value: any)
-			rawset(Self, Key, Value)
+		__index = function(_, Key)
+			return Data[Key]
+		end,
+
+		__newindex = function(_, Key, Value)
+			if Removed then
+				return
+			end
+
+			Data[Key] = Value
 
 			if Key == "Radius" then
 				UpdateSize()
+
 			elseif Key == "Position" then
 				UpdatePosition()
+
 			elseif
 				Key == "Visible"
 				or Key == "ZIndex"
@@ -195,11 +238,15 @@ local function CreateCircle(): Object
 		end,
 	})
 
+	--// Initial state
+	UpdateSize()
+	UpdatePosition()
 	UpdateVisual()
 
 	return Object
 end
 
+--// Create object
 local function CreateObject(Type: string): Object
 	assert(
 		MoloAPI.Properties[Type],
@@ -213,6 +260,7 @@ local function CreateObject(Type: string): Object
 	error(`Object type "{Type}" is not implemented`)
 end
 
+--// Public constructor
 function MoloAPI.new(Type: string): Object
 	return CreateObject(Type)
 end
