@@ -1,20 +1,62 @@
--- [[ ESP ]] --
+-- [[ ESP ]]
 
 local ESP: {any} = {}
 
-ESP.Objects = {} :: {[Player]: {
+local Players: Players = game:GetService("Players")
+local Player: Player = Players.LocalPlayer
+local Camera: Camera = workspace.CurrentCamera
+local PlayerGui: PlayerGui = Player:WaitForChild("PlayerGui")
+local RunService: RunService = game:GetService("RunService")
+
+type ESPObject = {
 	Highlight: Highlight?,
 	NameTag: BillboardGui?,
-	Arrow: TextLabel?
-}}
+	NameLabel: TextLabel?,
+	Arrow: TextLabel?,
+	HealthLabel: TextLabel?,
+	Connections: {RBXScriptConnection}
+}
 
+ESP.Objects = {} :: {[Player]: ESPObject}
 ESP.Enabled = false
+ESP.Connection = nil :: RBXScriptConnection?
+
+local ScreenGui: ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MoloHubESP"
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+local function CreateTextLabel(
+	Parent: Instance,
+	Name: string,
+	TextSize: number
+): TextLabel
+	local Label: TextLabel = Instance.new("TextLabel")
+
+	Label.Name = Name
+	Label.BackgroundTransparency = 1
+	Label.Size = UDim2.fromScale(1, 1)
+	Label.Font = Enum.Font.GothamBold
+	Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+	Label.TextSize = TextSize
+	Label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	Label.TextStrokeTransparency = 0.25
+	Label.Parent = Parent
+
+	return Label
+end
 
 function ESP:Remove(TargetPlayer: Player): ()
-	local Object = self.Objects[TargetPlayer]
+	local Object: ESPObject? = self.Objects[TargetPlayer]
 
 	if not Object then
 		return
+	end
+
+	for _, Connection: RBXScriptConnection in Object.Connections do
+		Connection:Disconnect()
 	end
 
 	if Object.Highlight then
@@ -51,13 +93,15 @@ function ESP:Add(TargetPlayer: Player): ()
 		return
 	end
 
+	local Connections: {RBXScriptConnection} = {}
+
 	local Highlight: Highlight = Instance.new("Highlight")
 	Highlight.Name = "MoloHubHighlight"
 	Highlight.Adornee = Character
 	Highlight.FillColor = Color3.fromRGB(255, 0, 0)
-	Highlight.FillTransparency = 0.3
+	Highlight.FillTransparency = 0.35
 	Highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-	Highlight.OutlineTransparency = 0.5
+	Highlight.OutlineTransparency = 0.25
 	Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
 	Highlight.Parent = Character
 
@@ -65,40 +109,62 @@ function ESP:Add(TargetPlayer: Player): ()
 	NameTag.Name = "MoloHubName"
 	NameTag.Adornee = Head
 	NameTag.AlwaysOnTop = true
-	NameTag.Size = UDim2.fromOffset(200, 30)
+	NameTag.Size = UDim2.fromOffset(220, 55)
 	NameTag.StudsOffset = Vector3.new(0, 3, 0)
 	NameTag.Parent = ScreenGui
 
-	local NameLabel: TextLabel = Instance.new("TextLabel")
-	NameLabel.BackgroundTransparency = 1
-	NameLabel.Size = UDim2.fromScale(1, 1)
-	NameLabel.Font = Enum.Font.GothamBold
+	local NameLabel: TextLabel = CreateTextLabel(
+		NameTag,
+		"Username",
+		14
+	)
+
 	NameLabel.Text = TargetPlayer.Name
-	NameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	NameLabel.TextSize = 14
-	NameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-	NameLabel.TextStrokeTransparency = 0.25
-	NameLabel.Parent = NameTag
+	NameLabel.Size = UDim2.new(1, 0, 0.55, 0)
+
+	local HealthLabel: TextLabel = CreateTextLabel(
+		NameTag,
+		"Health",
+		12
+	)
+
+	HealthLabel.Position = UDim2.new(0, 0, 0.5, 0)
+	HealthLabel.Size = UDim2.new(1, 0, 0.5, 0)
+	HealthLabel.Font = Enum.Font.Gotham
 
 	local Arrow: TextLabel = Instance.new("TextLabel")
+
 	Arrow.Name = "MoloHubArrow"
 	Arrow.AnchorPoint = Vector2.new(0.5, 0.5)
 	Arrow.BackgroundTransparency = 1
-	Arrow.Size = UDim2.fromOffset(30, 30)
+	Arrow.Size = UDim2.fromOffset(35, 35)
 	Arrow.Font = Enum.Font.GothamBold
 	Arrow.Text = "▲"
 	Arrow.TextColor3 = Color3.fromRGB(255, 0, 0)
-	Arrow.TextSize = 24
+	Arrow.TextSize = 26
 	Arrow.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-	Arrow.TextStrokeTransparency = 0.25
+	Arrow.TextStrokeTransparency = 0.2
 	Arrow.Visible = false
 	Arrow.ZIndex = 100
 	Arrow.Parent = ScreenGui
 
+	table.insert(
+		Connections,
+		TargetPlayer.CharacterAdded:Connect(function()
+			if self.Enabled then
+				task.wait()
+				self:Add(TargetPlayer)
+			end
+		end)
+	)
+
 	self.Objects[TargetPlayer] = {
 		Highlight = Highlight,
 		NameTag = NameTag,
-		Arrow = Arrow
+		NameLabel = NameLabel,
+		Arrow = Arrow,
+		HealthLabel = HealthLabel,
+		Connections = Connections
 	}
 end
 
@@ -112,6 +178,12 @@ function ESP:Enable(): ()
 	for _, TargetPlayer: Player in Players:GetPlayers() do
 		self:Add(TargetPlayer)
 	end
+
+	if not self.Connection then
+		self.Connection = RunService.RenderStepped:Connect(function()
+			self:Update()
+		end)
+	end
 end
 
 function ESP:Disable(): ()
@@ -121,8 +193,30 @@ function ESP:Disable(): ()
 
 	self.Enabled = false
 
-	for TargetPlayer in pairs(self.Objects) do
+	for TargetPlayer: Player in pairs(self.Objects) do
 		self:Remove(TargetPlayer)
+	end
+end
+
+function ESP:Toggle(): ()
+	if self.Enabled then
+		self:Disable()
+	else
+		self:Enable()
+	end
+end
+
+function ESP:Refresh(): ()
+	if not self.Enabled then
+		return
+	end
+
+	for TargetPlayer: Player in pairs(self.Objects) do
+		self:Remove(TargetPlayer)
+	end
+
+	for _, TargetPlayer: Player in Players:GetPlayers() do
+		self:Add(TargetPlayer)
 	end
 end
 
@@ -131,14 +225,43 @@ function ESP:Update(): ()
 		return
 	end
 
+	Camera = workspace.CurrentCamera
+
+	if not Camera then
+		return
+	end
+
 	local ViewportSize: Vector2 = Camera.ViewportSize
 	local Center: Vector2 = ViewportSize / 2
 
-	for TargetPlayer, Object in pairs(self.Objects) do
+	for TargetPlayer, Object: ESPObject in pairs(self.Objects) do
 		local Character: Model? = TargetPlayer.Character
 		local Arrow: TextLabel? = Object.Arrow
+		local NameTag: BillboardGui? = Object.NameTag
+		local HealthLabel: TextLabel? = Object.HealthLabel
 
-		if not Character or not Arrow then
+		if not Character then
+			if Arrow then
+				Arrow.Visible = false
+			end
+
+			if NameTag then
+				NameTag.Enabled = false
+			end
+
+			continue
+		end
+
+		local Humanoid: Humanoid? =
+			Character:FindFirstChildOfClass("Humanoid")
+
+		local RootPart: BasePart? =
+			Character:FindFirstChild("HumanoidRootPart")
+
+		local Head: BasePart? =
+			Character:FindFirstChild("Head")
+
+		if not Humanoid or not RootPart or not Head then
 			if Arrow then
 				Arrow.Visible = false
 			end
@@ -146,19 +269,41 @@ function ESP:Update(): ()
 			continue
 		end
 
-		local RootPart: BasePart? =
-			Character:FindFirstChild("HumanoidRootPart")
+		if NameTag then
+			NameTag.Enabled = true
+		end
 
-		if not RootPart then
-			Arrow.Visible = false
-			continue
+		if HealthLabel then
+			HealthLabel.Text = string.format(
+				"HP: %d / %d",
+				math.floor(Humanoid.Health),
+				math.floor(Humanoid.MaxHealth)
+			)
+		end
+
+		local Distance: number =
+			(RootPart.Position - Camera.CFrame.Position).Magnitude
+
+		if Object.NameLabel then
+			Object.NameLabel.Text = string.format(
+				"%s  [%d]",
+				TargetPlayer.Name,
+				math.floor(Distance)
+			)
 		end
 
 		local ScreenPosition: Vector3, OnScreen: boolean =
 			Camera:WorldToViewportPoint(RootPart.Position)
 
 		if OnScreen and ScreenPosition.Z > 0 then
-			Arrow.Visible = false
+			if Arrow then
+				Arrow.Visible = false
+			end
+
+			continue
+		end
+
+		if not Arrow then
 			continue
 		end
 
@@ -176,9 +321,13 @@ function ESP:Update(): ()
 
 		Direction = Direction.Unit
 
-		local Margin: number = 50
-		local HalfWidth: number = ViewportSize.X / 2 - Margin
-		local HalfHeight: number = ViewportSize.Y / 2 - Margin
+		local Margin: number = 45
+
+		local HalfWidth: number =
+			ViewportSize.X / 2 - Margin
+
+		local HalfHeight: number =
+			ViewportSize.Y / 2 - Margin
 
 		local ScaleX: number =
 			math.abs(Direction.X) > 0
@@ -200,9 +349,41 @@ function ESP:Update(): ()
 			math.clamp(Position.Y, Margin, ViewportSize.Y - Margin)
 		)
 
-		Arrow.Position = UDim2.fromOffset(Position.X, Position.Y)
+		Arrow.Position = UDim2.fromOffset(
+			Position.X,
+			Position.Y
+		)
+
 		Arrow.Rotation =
 			math.deg(math.atan2(Direction.Y, Direction.X)) + 90
+
 		Arrow.Visible = true
 	end
 end
+
+Players.PlayerAdded:Connect(function(TargetPlayer: Player)
+	if ESP.Enabled then
+		TargetPlayer.CharacterAdded:Wait()
+
+		if ESP.Enabled then
+			ESP:Add(TargetPlayer)
+		end
+	end
+end)
+
+Players.PlayerRemoving:Connect(function(TargetPlayer: Player)
+	ESP:Remove(TargetPlayer)
+end)
+
+function ESP:Destroy(): ()
+	self:Disable()
+
+	if self.Connection then
+		self.Connection:Disconnect()
+		self.Connection = nil
+	end
+
+	ScreenGui:Destroy()
+end
+
+return ESP
