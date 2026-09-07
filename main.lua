@@ -612,7 +612,7 @@ local function InjectGameHooks(): ()
 		end  
 	end
 
-	local MainEvent: RemoteEvent? = ReplicatedStorage:FindFirstChild("MAINEVENT")  
+	local MainEvent: RemoteEvent? = ReplicatedStorage:WaitForChild("MAINEVENT")  
 	if MainEvent then  
 		local OriginalFireServer: (any, any, ...any) -> any = MainEvent.FireServer
 
