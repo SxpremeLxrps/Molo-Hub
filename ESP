@@ -1,0 +1,208 @@
+-- [[ ESP ]] --
+
+local ESP: {any} = {}
+
+ESP.Objects = {} :: {[Player]: {
+	Highlight: Highlight?,
+	NameTag: BillboardGui?,
+	Arrow: TextLabel?
+}}
+
+ESP.Enabled = false
+
+function ESP:Remove(TargetPlayer: Player): ()
+	local Object = self.Objects[TargetPlayer]
+
+	if not Object then
+		return
+	end
+
+	if Object.Highlight then
+		Object.Highlight:Destroy()
+	end
+
+	if Object.NameTag then
+		Object.NameTag:Destroy()
+	end
+
+	if Object.Arrow then
+		Object.Arrow:Destroy()
+	end
+
+	self.Objects[TargetPlayer] = nil
+end
+
+function ESP:Add(TargetPlayer: Player): ()
+	if TargetPlayer == Player then
+		return
+	end
+
+	self:Remove(TargetPlayer)
+
+	local Character: Model? = TargetPlayer.Character
+
+	if not Character then
+		return
+	end
+
+	local Head: BasePart? = Character:FindFirstChild("Head")
+
+	if not Head then
+		return
+	end
+
+	local Highlight: Highlight = Instance.new("Highlight")
+	Highlight.Name = "MoloHubHighlight"
+	Highlight.Adornee = Character
+	Highlight.FillColor = Color3.fromRGB(255, 0, 0)
+	Highlight.FillTransparency = 0.3
+	Highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+	Highlight.OutlineTransparency = 0.5
+	Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	Highlight.Parent = Character
+
+	local NameTag: BillboardGui = Instance.new("BillboardGui")
+	NameTag.Name = "MoloHubName"
+	NameTag.Adornee = Head
+	NameTag.AlwaysOnTop = true
+	NameTag.Size = UDim2.fromOffset(200, 30)
+	NameTag.StudsOffset = Vector3.new(0, 3, 0)
+	NameTag.Parent = ScreenGui
+
+	local NameLabel: TextLabel = Instance.new("TextLabel")
+	NameLabel.BackgroundTransparency = 1
+	NameLabel.Size = UDim2.fromScale(1, 1)
+	NameLabel.Font = Enum.Font.GothamBold
+	NameLabel.Text = TargetPlayer.Name
+	NameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	NameLabel.TextSize = 14
+	NameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	NameLabel.TextStrokeTransparency = 0.25
+	NameLabel.Parent = NameTag
+
+	local Arrow: TextLabel = Instance.new("TextLabel")
+	Arrow.Name = "MoloHubArrow"
+	Arrow.AnchorPoint = Vector2.new(0.5, 0.5)
+	Arrow.BackgroundTransparency = 1
+	Arrow.Size = UDim2.fromOffset(30, 30)
+	Arrow.Font = Enum.Font.GothamBold
+	Arrow.Text = "▲"
+	Arrow.TextColor3 = Color3.fromRGB(255, 0, 0)
+	Arrow.TextSize = 24
+	Arrow.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	Arrow.TextStrokeTransparency = 0.25
+	Arrow.Visible = false
+	Arrow.ZIndex = 100
+	Arrow.Parent = ScreenGui
+
+	self.Objects[TargetPlayer] = {
+		Highlight = Highlight,
+		NameTag = NameTag,
+		Arrow = Arrow
+	}
+end
+
+function ESP:Enable(): ()
+	if self.Enabled then
+		return
+	end
+
+	self.Enabled = true
+
+	for _, TargetPlayer: Player in Players:GetPlayers() do
+		self:Add(TargetPlayer)
+	end
+end
+
+function ESP:Disable(): ()
+	if not self.Enabled then
+		return
+	end
+
+	self.Enabled = false
+
+	for TargetPlayer in pairs(self.Objects) do
+		self:Remove(TargetPlayer)
+	end
+end
+
+function ESP:Update(): ()
+	if not self.Enabled then
+		return
+	end
+
+	local ViewportSize: Vector2 = Camera.ViewportSize
+	local Center: Vector2 = ViewportSize / 2
+
+	for TargetPlayer, Object in pairs(self.Objects) do
+		local Character: Model? = TargetPlayer.Character
+		local Arrow: TextLabel? = Object.Arrow
+
+		if not Character or not Arrow then
+			if Arrow then
+				Arrow.Visible = false
+			end
+
+			continue
+		end
+
+		local RootPart: BasePart? =
+			Character:FindFirstChild("HumanoidRootPart")
+
+		if not RootPart then
+			Arrow.Visible = false
+			continue
+		end
+
+		local ScreenPosition: Vector3, OnScreen: boolean =
+			Camera:WorldToViewportPoint(RootPart.Position)
+
+		if OnScreen and ScreenPosition.Z > 0 then
+			Arrow.Visible = false
+			continue
+		end
+
+		local Direction: Vector2 =
+			Vector2.new(ScreenPosition.X, ScreenPosition.Y) - Center
+
+		if ScreenPosition.Z < 0 then
+			Direction = -Direction
+		end
+
+		if Direction.Magnitude <= 0 then
+			Arrow.Visible = false
+			continue
+		end
+
+		Direction = Direction.Unit
+
+		local Margin: number = 50
+		local HalfWidth: number = ViewportSize.X / 2 - Margin
+		local HalfHeight: number = ViewportSize.Y / 2 - Margin
+
+		local ScaleX: number =
+			math.abs(Direction.X) > 0
+			and HalfWidth / math.abs(Direction.X)
+			or math.huge
+
+		local ScaleY: number =
+			math.abs(Direction.Y) > 0
+			and HalfHeight / math.abs(Direction.Y)
+			or math.huge
+
+		local Scale: number = math.min(ScaleX, ScaleY)
+
+		local Position: Vector2 =
+			Center + Direction * Scale
+
+		Position = Vector2.new(
+			math.clamp(Position.X, Margin, ViewportSize.X - Margin),
+			math.clamp(Position.Y, Margin, ViewportSize.Y - Margin)
+		)
+
+		Arrow.Position = UDim2.fromOffset(Position.X, Position.Y)
+		Arrow.Rotation =
+			math.deg(math.atan2(Direction.Y, Direction.X)) + 90
+		Arrow.Visible = true
+	end
+end
