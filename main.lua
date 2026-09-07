@@ -352,40 +352,23 @@ local Drawing: {any}
 local ESP: {any} = loadstring(game:HttpGet("https://raw.githubusercontent.com/SxpremeLxrps/Molo-Hub/main/ESP"))()
 local DrawingSuccess: boolean = false
 
-local function InitializeDrawing(): ()  
-	DrawingSuccess = pcall(function()  
-		Drawing = loadstring(game:HttpGet("https://raw.githubusercontent.com/SxpremeLxrps/Molo-Hub/main/MoloAPI"))()  
+local function InitializeDrawing()
+	local Success, Result = pcall(function()
+		return loadstring(game:HttpGet(
+			"https://raw.githubusercontent.com/SxpremeLxrps/Molo-Hub/main/MoloAPI"
+			))()
 	end)
 
-	if not DrawingSuccess then  
-		Drawing = {  
-			new = function(ShapeType: string): any  
-				if ShapeType == "Circle" then  
-					local Circle = Instance.new("ImageLabel")  
-					Circle.Name = "FOVCircle"  
-					Circle.Parent = PlayerGui  
-					Circle.Position = UDim2.new(0.5, 0, 0.5, 0)  
-					Circle.Size = UDim2.new(0, 300, 0, 300)  
-					Circle.BackgroundTransparency = 1  
-					Circle.Image = "rbxasset://textures/ui/Cursors/StarCursor.png"  
-					Circle.ImageTransparency = 0.3
+	if not Success then
+		error("MoloAPI failed to load: " .. tostring(Result))
+	end
 
-					return {  
-						Visible = true,  
-						Color = Color3.new(1, 0, 0),  
-						Thickness = 1.5,  
-						Transparency = 0.5,  
-						Radius = 150,  
-						Filled = false,  
-						Position = Vector2.new(0, 0),  
-						Remove = function()  
-							Circle:Destroy()  
-						end  
-					}  
-				end  
-			end  
-		}  
-	end  
+	Drawing = Result
+
+	assert(Drawing ~= nil, "MoloAPI returned nil")
+	assert(type(Drawing.new) == "function", "MoloAPI.new is missing")
+
+	print("MoloAPI loaded successfully")
 end
 
 InitializeDrawing()
